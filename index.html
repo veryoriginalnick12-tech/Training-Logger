@@ -170,6 +170,16 @@ table.st { width: 100%; border-collapse: collapse; font-size: 13px; margin-botto
   </div>
   <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)" />
 
+  <!-- banner shown only if old localStorage data found -->
+  <div id="migrate-banner" style="display:none; background:var(--blue-bg); border:1px solid #a8c8ee; border-radius:var(--radius); padding:12px 14px; margin-bottom:12px; font-size:13px;">
+    <div style="font-weight:500; margin-bottom:6px;">📦 נמצאו נתונים ישנים בדפדפן זה</div>
+    <div style="color:var(--muted); margin-bottom:10px; font-size:12px;">יש לך אימונים שנשמרו באפליקציה הקודמת. רוצה להעביר אותם ל-Google Sheets?</div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn-primary" style="font-size:12px; padding:6px 14px;" onclick="migrateLocalStorage()">העבר עכשיו</button>
+      <button class="btn-secondary" style="font-size:12px; padding:6px 14px;" onclick="dismissMigrate()">לא תודה</button>
+    </div>
+  </div>
+
   <div class="tab-bar">
     <button class="tab active" onclick="switchTab('log',this)">אימון</button>
     <button class="tab" onclick="switchTab('history',this)">היסטוריה</button>
@@ -964,8 +974,45 @@ function showToast(msg) {
   window._tt = setTimeout(() => t.classList.remove('show'), 2800);
 }
 
+async function migrateLocalStorage() {
+  const banner = document.getElementById('migrate-banner');
+  banner.querySelector('button').textContent = 'מעלה...';
+  try {
+    const old = JSON.parse(localStorage.getItem('wt_workouts') || '{}');
+    const old2 = JSON.parse(localStorage.getItem('wt_v2') || '{}');
+    const merged = Object.assign({}, old, old2, workouts); // sheets wins on conflict
+    const toUpload = Object.keys(merged).filter(k => !workouts[k] || JSON.stringify(workouts[k]) !== JSON.stringify(merged[k]));
+    for (const k of toUpload) {
+      await apiCall({ action: 'save', key: k, workout: merged[k] });
+    }
+    workouts = merged;
+    localStorage.setItem('wt_v2', JSON.stringify(workouts));
+    localStorage.removeItem('wt_workouts');
+    banner.style.display = 'none';
+    renderLog();
+    showToast('הועברו ' + toUpload.length + ' אימונים ל-Sheets ✓');
+  } catch(e) {
+    showToast('שגיאה בהעברה — נסה שוב');
+    banner.querySelector('button').textContent = 'העבר עכשיו';
+  }
+}
+
+function dismissMigrate() {
+  document.getElementById('migrate-banner').style.display = 'none';
+  localStorage.setItem('wt_migrate_dismissed', '1');
+}
+
+function checkForOldData() {
+  if (localStorage.getItem('wt_migrate_dismissed')) return;
+  const old = localStorage.getItem('wt_workouts');
+  if (old && old !== '{}') {
+    document.getElementById('migrate-banner').style.display = 'block';
+  }
+}
+
 async function init() {
   await loadData();
+  checkForOldData();
   renderLog();
 }
 init();
