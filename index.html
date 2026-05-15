@@ -72,7 +72,14 @@ table.st { width: 100%; border-collapse: collapse; font-size: 13px; margin-botto
 .num-inp { width: 56px; padding: 5px 3px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; text-align: center; background: var(--bg); color: var(--text); }
 .note-inp { width: 65px; padding: 5px 3px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; text-align: center; background: var(--bg); color: var(--text); }
 .num-inp:focus, .note-inp:focus { outline: none; border-color: var(--accent); }
-.num-inp.improved { border-color: var(--green); background: #f4fbf7; }
+.num-inp.inp-better { border-color: var(--green) !important; background: #f4fbf7 !important; }
+.num-inp.inp-worse  { border-color: var(--red)   !important; background: #fdf4f4 !important; }
+.num-inp.inp-same   { border-color: #c8a800     !important; background: #fffdf0 !important; }
+.drag-handle { cursor: grab; color: var(--muted); font-size: 15px; padding: 0 4px 0 0; user-select: none; touch-action: none; flex-shrink: 0; line-height: 1; }
+.drag-handle:active { cursor: grabbing; }
+.ex-block.dragging { opacity: 0.35; }
+.ex-block.drag-over { border-top: 2px solid var(--accent); }
+.prev-note-banner { font-size: 12px; color: var(--amber); background: var(--amber-bg); border-radius: var(--radius-sm); padding: 4px 10px; margin-bottom: 6px; border: 1px solid #f5c87e; }
 .prev-hint { font-size: 10px; color: var(--muted); display: block; margin-top: 1px; }
 .goal-btn { font-size: 11px; padding: 3px 6px; border-radius: 99px; border: 1px solid var(--border); background: none; cursor: pointer; color: var(--muted); white-space: nowrap; }
 .goal-btn.reached { background: var(--green-bg); border-color: var(--green); color: var(--green); }
@@ -152,9 +159,16 @@ table.st { width: 100%; border-collapse: collapse; font-size: 13px; margin-botto
 <body>
 <div class="container">
   <div class="app-header">
-    <h1>אימון כוח 💪</h1>
-    <p>תעד סטים, חזרות ומשקל — עם הצעות מהאימון הקודם</p>
+    <div>
+      <h1>אימון כוח 💪</h1>
+      <p>תעד סטים, חזרות ומשקל — עם הצעות מהאימון הקודם</p>
+    </div>
+    <div style="display:flex; gap:6px;">
+      <button class="icon-btn" style="font-size:12px; padding:6px 10px;" onclick="exportData()">📤 ייצוא</button>
+      <button class="icon-btn" style="font-size:12px; padding:6px 10px;" onclick="document.getElementById('import-file').click()">📥 ייבוא</button>
+    </div>
   </div>
+  <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)" />
 
   <div class="tab-bar">
     <button class="tab active" onclick="switchTab('log',this)">אימון</button>
@@ -248,6 +262,38 @@ let workouts = {};
 let pendingDeleteKey = null;
 let editingKey = null;
 
+function exportData() {
+  const data = localStorage.getItem('wt_v2') || '{}';
+  const blob = new Blob([data], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'workout-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  showToast('גיבוי יורד...');
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      // merge: new data wins on conflict
+      const existing = JSON.parse(localStorage.getItem('wt_v2') || '{}');
+      const merged = Object.assign({}, existing, parsed);
+      localStorage.setItem('wt_v2', JSON.stringify(merged));
+      loadData();
+      renderLog();
+      showToast('יובאו ' + Object.keys(parsed).length + ' אימונים ✓');
+    } catch(err) {
+      showToast('שגיאה — הקובץ לא תקין');
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
 function loadData() {
   try { workouts = JSON.parse(localStorage.getItem('wt_v2') || '{}'); } catch(e) { workouts = {}; }
 }
@@ -318,20 +364,23 @@ function appendExBlock(key, ei, container) {
     : 'ללא סטים';
 
   const prevData = getPrevExData(ex.name, key);
+  const prevNote = prevData && prevData.ex.note ? prevData.ex.note : '';
 
   const block = document.createElement('div');
   block.className = 'ex-block';
   block.id = 'exb-' + ei;
+  block.draggable = true;
 
   const badge = ex.goalReached ? '<span class="badge badge-goal">🎯 הגעת ליעד</span>' : '';
 
   block.innerHTML =
-    '<div class="ex-header" onclick="toggleEx(' + ei + ')">' +
-      '<div style="flex:1;min-width:0;">' +
+    '<div class="ex-header">' +
+      '<span class="drag-handle" title="גרור לסידור">⠿</span>' +
+      '<div style="flex:1;min-width:0;" onclick="toggleEx(' + ei + ')">' +
         '<div class="ex-name">' + ex.name + '</div>' +
         '<div class="ex-summary" id="exs-' + ei + '">' + summary + '</div>' +
       '</div>' +
-      '<div class="ex-right">' + badge +
+      '<div class="ex-right" onclick="toggleEx(' + ei + ')">' + badge +
         '<span class="toggle-icon" id="tog-' + ei + '">▲</span>' +
       '</div>' +
     '</div>' +
@@ -340,10 +389,17 @@ function appendExBlock(key, ei, container) {
         '<div class="prev-banner">📋 קודם (' + prevData.key + '): ' +
         prevData.ex.sets.map((s,i) => 'ס' + (i+1) + ': ' + (s.reps||0) + '×' + (s.weight||0) + 'ק"ג').join('  ·  ') +
         '</div>' : '') +
+      (prevNote ? '<div class="prev-note-banner">💬 הערה מקודם: ' + prevNote + '</div>' : '') +
       '<table class="st">' +
         '<thead><tr><th>סט</th><th>חזרות</th><th>משקל (ק"ג)</th><th>הערה</th><th>יעד</th><th></th></tr></thead>' +
         '<tbody id="stb-' + ei + '"></tbody>' +
       '</table>' +
+      '<div style="margin-bottom:8px;">' +
+        '<div class="notes-label">הערה לתרגיל (תופיע באימון הבא)</div>' +
+        '<input type="text" style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12px; background:var(--bg); color:var(--text);" ' +
+          'value="' + (ex.note||'') + '" placeholder="למשל: כאב בכתף, לשנות אחיזה..." ' +
+          'oninput="updExNote(' + ei + ',this.value)" />' +
+      '</div>' +
       '<div class="row-actions">' +
         '<button class="add-set-btn" onclick="addSet(' + ei + ')">+ סט</button>' +
         '<button class="save-ex-btn" onclick="saveEx(' + ei + ')">💾 שמור תרגיל</button>' +
@@ -352,6 +408,7 @@ function appendExBlock(key, ei, container) {
     '</div>';
   container.appendChild(block);
   renderSets(key, ei);
+  initDrag(block, ei);
 }
 
 function renderSets(key, ei) {
@@ -362,18 +419,20 @@ function renderSets(key, ei) {
   tbody.innerHTML = '';
   ex.sets.forEach((st, si) => {
     const ps = prevData && prevData.ex.sets[si];
-    const rImproved = ps && st.reps && parseInt(st.reps) > parseInt(ps.reps||0);
-    const wImproved = ps && st.weight && parseFloat(st.weight) > parseFloat(ps.weight||0);
+    const rVal = parseInt(st.reps)||0, rPrev = ps ? parseInt(ps.reps)||0 : null;
+    const wVal = parseFloat(st.weight)||0, wPrev = ps ? parseFloat(ps.weight)||0 : null;
+    const rClass = (ps && st.reps) ? (rVal > rPrev ? 'inp-better' : rVal < rPrev ? 'inp-worse' : 'inp-same') : '';
+    const wClass = (ps && st.weight) ? (wVal > wPrev ? 'inp-better' : wVal < wPrev ? 'inp-worse' : 'inp-same') : '';
     const tr = document.createElement('tr');
     tr.innerHTML =
       '<td>' + (si+1) + '</td>' +
       '<td>' +
-        '<input type="number" min="0" class="num-inp' + (rImproved ? ' improved' : '') + '" value="' + (st.reps||'') + '" placeholder="' + (ps ? ps.reps||'' : '0') + '" oninput="updSet(' + ei + ',' + si + ',\'reps\',this.value)">' +
-        (ps ? '<span class="prev-hint">קודם: ' + (ps.reps||0) + '</span>' : '') +
+        '<input type="number" min="0" class="num-inp ' + rClass + '" value="' + (st.reps||'') + '" placeholder="' + (ps ? ps.reps||'' : '0') + '" oninput="updSet(' + ei + ',' + si + ',\'reps\',this.value)">' +
+        (ps ? '<span class="prev-hint">קודם: ' + rPrev + '</span>' : '') +
       '</td>' +
       '<td>' +
-        '<input type="number" min="0" step="0.5" class="num-inp' + (wImproved ? ' improved' : '') + '" value="' + (st.weight||'') + '" placeholder="' + (ps ? ps.weight||'' : '') + '" oninput="updSet(' + ei + ',' + si + ',\'weight\',this.value)">' +
-        (ps ? '<span class="prev-hint">קודם: ' + (ps.weight||0) + '</span>' : '') +
+        '<input type="number" min="0" step="0.5" class="num-inp ' + wClass + '" value="' + (st.weight||'') + '" placeholder="' + (ps ? ps.weight||'' : '') + '" oninput="updSet(' + ei + ',' + si + ',\'weight\',this.value)">' +
+        (ps ? '<span class="prev-hint">קודם: ' + wPrev + '</span>' : '') +
       '</td>' +
       '<td><input type="text" class="note-inp" value="' + (st.note||'') + '" placeholder="..." oninput="updSet(' + ei + ',' + si + ',\'note\',this.value)"></td>' +
       '<td><button class="goal-btn' + (st.goalReached ? ' reached' : '') + '" onclick="toggleGoal(' + ei + ',' + si + ')">' + (st.goalReached ? '✓ יעד' : 'יעד') + '</button></td>' +
@@ -425,6 +484,73 @@ function saveEx(ei) {
   persist(); updateSummary(key, ei); showToast('תרגיל נשמר ✓');
 }
 
+function updExNote(ei, val) {
+  const key = dateKey(currentDate);
+  getWorkout(key).exercises[ei].note = val;
+  persist();
+}
+
+// ─── DRAG & DROP ──────────────────────────────────────────────────────────────
+let dragSrcIdx = null;
+
+function initDrag(block, ei) {
+  const handle = block.querySelector('.drag-handle');
+
+  // Desktop drag
+  block.addEventListener('dragstart', e => {
+    dragSrcIdx = ei;
+    block.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  block.addEventListener('dragend', () => block.classList.remove('dragging'));
+  block.addEventListener('dragover', e => { e.preventDefault(); block.classList.add('drag-over'); });
+  block.addEventListener('dragleave', () => block.classList.remove('drag-over'));
+  block.addEventListener('drop', e => {
+    e.preventDefault();
+    block.classList.remove('drag-over');
+    if (dragSrcIdx === null || dragSrcIdx === ei) return;
+    const key = dateKey(currentDate);
+    const exs = getWorkout(key).exercises;
+    const [moved] = exs.splice(dragSrcIdx, 1);
+    exs.splice(ei, 0, moved);
+    dragSrcIdx = null;
+    persist(); renderExercises(key);
+  });
+
+  // Mobile touch drag
+  let touchStartY = 0, touchMoved = false;
+  handle.addEventListener('touchstart', e => {
+    touchStartY = e.touches[0].clientY;
+    dragSrcIdx = ei;
+    touchMoved = false;
+  }, { passive: true });
+  handle.addEventListener('touchmove', e => {
+    touchMoved = true;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const els = document.elementsFromPoint(touch.clientX, touch.clientY);
+    document.querySelectorAll('.ex-block').forEach(b => b.classList.remove('drag-over'));
+    const target = els.find(el => el.classList && el.classList.contains('ex-block') && el !== block);
+    if (target) target.classList.add('drag-over');
+  }, { passive: false });
+  handle.addEventListener('touchend', e => {
+    document.querySelectorAll('.ex-block').forEach(b => b.classList.remove('drag-over'));
+    if (!touchMoved || dragSrcIdx === null) return;
+    const touch = e.changedTouches[0];
+    const els = document.elementsFromPoint(touch.clientX, touch.clientY);
+    const targetBlock = els.find(el => el.classList && el.classList.contains('ex-block') && el.id !== 'exb-' + dragSrcIdx);
+    if (targetBlock) {
+      const targetIdx = parseInt(targetBlock.id.replace('exb-', ''));
+      const key = dateKey(currentDate);
+      const exs = getWorkout(key).exercises;
+      const [moved] = exs.splice(dragSrcIdx, 1);
+      exs.splice(targetIdx, 0, moved);
+      persist(); renderExercises(key);
+    }
+    dragSrcIdx = null;
+  });
+}
+
 function addSet(ei) {
   const key = dateKey(currentDate);
   getWorkout(key).exercises[ei].sets.push({ reps:'', weight:'', note:'', goalReached: false });
@@ -443,18 +569,20 @@ function updSet(ei, si, field, val) {
   ex.sets[si][field] = val;
   persist();
   updateSummary(key, ei);
-  // update just the border color of reps/weight inputs without re-rendering
   if (field === 'reps' || field === 'weight') {
     const prevData = getPrevExData(ex.name, key);
     const ps = prevData && prevData.ex.sets[si];
     const tbody = document.getElementById('stb-' + ei);
-    if (tbody) {
+    if (tbody && ps) {
       const row = tbody.rows[si];
       if (row) {
-        const rInp = row.querySelector('td:nth-child(2) input');
-        const wInp = row.querySelector('td:nth-child(3) input');
-        if (rInp && ps) rInp.classList.toggle('improved', !!val && parseInt(val) > parseInt(ps.reps||0));
-        if (wInp && ps) wInp.classList.toggle('improved', !!val && parseFloat(val) > parseFloat(ps.weight||0));
+        const inp = row.querySelector(field === 'reps' ? 'td:nth-child(2) input' : 'td:nth-child(3) input');
+        if (inp) {
+          const cur = field === 'reps' ? parseInt(val)||0 : parseFloat(val)||0;
+          const prev = field === 'reps' ? parseInt(ps.reps)||0 : parseFloat(ps.weight)||0;
+          inp.classList.remove('inp-better','inp-worse','inp-same');
+          if (val) inp.classList.add(cur > prev ? 'inp-better' : cur < prev ? 'inp-worse' : 'inp-same');
+        }
       }
     }
   }
@@ -555,8 +683,12 @@ function renderHistory() {
       const detail = ex.sets.map((st, i) => 'ס' + (i+1) + ': ' + (st.reps||0) + '×' + (st.weight||0) + 'ק"ג').join('  ');
       html +=
         '<div class="hist-row">' +
-          '<div><div>' + ex.name + (ex.goalReached ? ' 🎯' : '') + '</div><div class="hist-detail">' + detail + '</div></div>' +
-          '<div style="text-align:left; white-space:nowrap; color:var(--muted); font-size:12px;">' + ex.sets.length + ' סטים<br>' + total + ' חז\'</div>' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div>' + ex.name + (ex.goalReached ? ' 🎯' : '') + '</div>' +
+            '<div class="hist-detail">' + detail + '</div>' +
+            (ex.note ? '<div style="font-size:11px; color:var(--amber); margin-top:2px;">💬 ' + ex.note + '</div>' : '') +
+          '</div>' +
+          '<div style="text-align:left; white-space:nowrap; color:var(--muted); font-size:12px; flex-shrink:0;">' + ex.sets.length + ' סטים<br>' + total + ' חז\'</div>' +
         '</div>';
     });
     if (w.notes) html += '<div style="font-size:12px; color:var(--muted); margin-top:8px; padding-top:8px; border-top:1px solid var(--border);">📝 ' + w.notes + '</div>';
