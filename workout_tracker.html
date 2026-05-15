@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>מנהל אימוני כוח</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f5f4f0;
+  --surface: #ffffff;
+  --border: #e0ddd5;
+  --text: #1c1c1a;
+  --muted: #7a7870;
+  --accent: #1c1c1a;
+  --green: #1a6e3e;
+  --green-bg: #edf7f2;
+  --amber: #7a4f0b;
+  --amber-bg: #fef7ec;
+  --red: #b02a2a;
+  --red-bg: #fdf1f1;
+  --blue: #1a4a7a;
+  --blue-bg: #eef4fb;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+.container { max-width: 720px; margin: 0 auto; padding: 1.25rem 1rem 4rem; }
+
+.app-header { margin-bottom: 1.25rem; }
+.app-header h1 { font-size: 20px; font-weight: 600; }
+.app-header p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.tab-bar { display: flex; margin-bottom: 1.25rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px; gap: 4px; }
+.tab { flex: 1; font-size: 13px; padding: 7px 4px; cursor: pointer; color: var(--muted); background: none; border: none; border-radius: var(--radius-sm); transition: all 0.15s; }
+.tab.active { background: var(--accent); color: #fff; font-weight: 500; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 10px; box-shadow: var(--shadow); }
+
+.date-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.date-nav { display: flex; align-items: center; gap: 6px; }
+.icon-btn { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 12px; cursor: pointer; font-size: 15px; color: var(--muted); }
+.icon-btn:hover { background: var(--bg); }
+.date-label { font-size: 14px; font-weight: 500; min-width: 150px; text-align: center; }
+
+.tmpl-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.chip { font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 99px; cursor: pointer; color: var(--muted); background: var(--surface); transition: all 0.12s; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.chip.action { border-color: var(--blue); color: var(--blue); background: var(--blue-bg); }
+.chip.action:hover { background: #dce9f7; }
+
+.ex-block { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
+.ex-header { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; background: var(--bg); cursor: pointer; user-select: none; gap: 8px; }
+.ex-name { font-size: 14px; font-weight: 500; }
+.ex-summary { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.ex-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 500; white-space: nowrap; }
+.badge-goal { background: var(--green-bg); color: var(--green); border: 1px solid #9dd6b8; }
+.toggle-icon { font-size: 11px; color: var(--muted); transition: transform 0.2s; }
+.toggle-icon.closed { transform: rotate(180deg); }
+.ex-body { padding: 10px 14px; }
+
+.prev-banner { font-size: 12px; color: var(--blue); background: var(--blue-bg); border-radius: var(--radius-sm); padding: 5px 10px; margin-bottom: 8px; line-height: 1.5; }
+
+table.st { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 8px; }
+.st th { color: var(--muted); font-weight: 400; padding: 4px 3px; border-bottom: 1px solid var(--border); text-align: center; font-size: 11px; }
+.st th:first-child { text-align: right; width: 24px; }
+.st td { padding: 4px 2px; text-align: center; vertical-align: middle; }
+.st td:first-child { color: var(--muted); font-size: 12px; text-align: right; }
+.num-inp { width: 56px; padding: 5px 3px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; text-align: center; background: var(--bg); color: var(--text); }
+.note-inp { width: 65px; padding: 5px 3px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; text-align: center; background: var(--bg); color: var(--text); }
+.num-inp:focus, .note-inp:focus { outline: none; border-color: var(--accent); }
+.num-inp.improved { border-color: var(--green); background: #f4fbf7; }
+.prev-hint { font-size: 10px; color: var(--muted); display: block; margin-top: 1px; }
+.goal-btn { font-size: 11px; padding: 3px 6px; border-radius: 99px; border: 1px solid var(--border); background: none; cursor: pointer; color: var(--muted); white-space: nowrap; }
+.goal-btn.reached { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+.del-btn { background: none; border: none; cursor: pointer; color: var(--muted); padding: 3px 5px; border-radius: 4px; font-size: 13px; }
+.del-btn:hover { background: var(--red-bg); color: var(--red); }
+
+.row-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.add-set-btn { font-size: 12px; padding: 5px 11px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; color: var(--muted); }
+.add-set-btn:hover { border-color: var(--accent); color: var(--text); }
+.save-ex-btn { font-size: 12px; padding: 5px 11px; background: var(--green-bg); border: 1px solid #9dd6b8; border-radius: var(--radius-sm); cursor: pointer; color: var(--green); font-weight: 500; }
+.save-ex-btn:hover { background: #d6f0e4; }
+.remove-ex-btn { font-size: 12px; padding: 5px 9px; background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; color: var(--red); }
+.remove-ex-btn:hover { background: var(--red-bg); }
+
+.add-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.add-row input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; background: var(--surface); color: var(--text); }
+.add-row input:focus { outline: none; border-color: var(--accent); }
+.btn-primary { background: var(--accent); color: #fff; border: none; border-radius: var(--radius-sm); padding: 8px 16px; font-size: 13px; cursor: pointer; font-weight: 500; white-space: nowrap; }
+.btn-primary:hover { opacity: 0.85; }
+.btn-save-all { width: 100%; padding: 11px; font-size: 15px; border-radius: var(--radius); margin-top: 6px; }
+
+.notes-label { font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+.notes-input { width: 100%; padding: 8px 10px; font-size: 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); resize: vertical; min-height: 60px; font-family: inherit; }
+.notes-input:focus { outline: none; border-color: var(--accent); }
+
+.hist-day { margin-bottom: 10px; }
+.hist-date-label { font-size: 12px; color: var(--muted); font-weight: 500; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+.hist-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; gap: 12px; }
+.hist-row:last-child { border-bottom: none; }
+.hist-detail { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.6; }
+.hist-actions { display: flex; gap: 6px; }
+.small-btn { font-size: 11px; padding: 3px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: none; cursor: pointer; }
+.small-btn.edit { color: var(--blue); }
+.small-btn.edit:hover { background: var(--blue-bg); }
+.small-btn.del { color: var(--red); }
+.small-btn.del:hover { background: var(--red-bg); }
+
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; text-align: center; box-shadow: var(--shadow); }
+.stat-num { font-size: 24px; font-weight: 600; }
+.stat-lbl { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+.week-picker { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.week-picker select { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font-size: 13px; cursor: pointer; }
+.week-stats-inner { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 8px; text-align: center; }
+.week-stat-n { font-size: 20px; font-weight: 600; }
+.week-stat-l { font-size: 12px; color: var(--muted); }
+
+.bar-wrap { margin-bottom: 10px; }
+.bar-header { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+.bar-track { height: 7px; background: var(--bg); border-radius: 99px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--accent); border-radius: 99px; transition: width 0.4s; }
+.bar-fill.great { background: var(--green); }
+.bar-fill.stuck { background: var(--amber); }
+
+.insight-card { border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 8px; border: 1px solid; }
+.insight-card.great { background: var(--green-bg); border-color: #9dd6b8; }
+.insight-card.stuck { background: var(--amber-bg); border-color: #f5c87e; }
+.insight-title { font-size: 13px; font-weight: 500; margin-bottom: 3px; }
+.insight-body { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 100; align-items: center; justify-content: center; }
+.modal-overlay.show { display: flex; }
+.modal { background: var(--surface); border-radius: var(--radius); padding: 1.25rem; width: 92%; max-width: 540px; max-height: 88vh; overflow-y: auto; }
+.modal h3 { font-size: 16px; margin-bottom: 12px; }
+.modal-actions { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
+.btn-secondary { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 14px; font-size: 13px; cursor: pointer; color: var(--muted); }
+.btn-secondary:hover { background: var(--bg); }
+.btn-danger { background: var(--red-bg); border: 1px solid var(--red); border-radius: var(--radius-sm); padding: 7px 14px; font-size: 13px; cursor: pointer; color: var(--red); }
+
+.empty-state { text-align: center; padding: 2rem 1rem; color: var(--muted); line-height: 1.8; }
+
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(60px); background: var(--accent); color: #fff; font-size: 13px; padding: 9px 20px; border-radius: 99px; opacity: 0; transition: all 0.3s; z-index: 200; white-space: nowrap; pointer-events: none; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="app-header">
+    <h1>אימון כוח 💪</h1>
+    <p>תעד סטים, חזרות ומשקל — עם הצעות מהאימון הקודם</p>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab active" onclick="switchTab('log',this)">אימון</button>
+    <button class="tab" onclick="switchTab('history',this)">היסטוריה</button>
+    <button class="tab" onclick="switchTab('stats',this)">סטטיסטיקות</button>
+  </div>
+
+  <div id="tab-log">
+    <div class="date-bar">
+      <div class="date-nav">
+        <button class="icon-btn" onclick="changeDate(-1)">›</button>
+        <span class="date-label" id="date-display"></span>
+        <button class="icon-btn" onclick="changeDate(1)">‹</button>
+      </div>
+      <button class="icon-btn" style="font-size:13px;" onclick="goToday()">היום</button>
+    </div>
+
+    <div>
+      <div class="tmpl-label">טעינה מהירה</div>
+      <div class="chips">
+        <button class="chip action" onclick="loadPrevWorkout()">⟳ אימון קודם</button>
+        <button class="chip" onclick="loadTemplate('chest')">חזה + תלת ראש</button>
+        <button class="chip" onclick="loadTemplate('back')">גב + דו ראש</button>
+        <button class="chip" onclick="loadTemplate('legs')">רגליים</button>
+        <button class="chip" onclick="loadTemplate('shoulders')">כתפיים</button>
+        <button class="chip" onclick="loadTemplate('full')">גוף מלא</button>
+      </div>
+    </div>
+
+    <div id="exercises-container"></div>
+
+    <div class="add-row">
+      <input type="text" id="new-ex-input" placeholder="שם תרגיל חדש..." onkeydown="if(event.key==='Enter')addExercise()" />
+      <button class="btn-primary" onclick="addExercise()">+ הוסף</button>
+    </div>
+
+    <div class="card">
+      <div class="notes-label">הערות לאימון</div>
+      <textarea class="notes-input" id="workout-notes" placeholder="איך הרגשת? משקלים לשנות?" oninput="saveNotes()"></textarea>
+    </div>
+
+    <button class="btn-primary btn-save-all" onclick="saveWorkout()">שמור אימון ✓</button>
+  </div>
+
+  <div id="tab-history" style="display:none;">
+    <div id="history-container"></div>
+  </div>
+
+  <div id="tab-stats" style="display:none;">
+    <div id="stats-container"></div>
+  </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <h3>✏️ עריכת אימון</h3>
+    <div id="edit-modal-body"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal()">ביטול</button>
+      <button class="btn-primary" onclick="saveEditModal()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE CONFIRM -->
+<div class="modal-overlay" id="del-modal">
+  <div class="modal">
+    <h3>🗑 מחיקת אימון</h3>
+    <p style="font-size:13px; color:var(--muted); margin-bottom:4px;">האם למחוק את האימון הזה? לא ניתן לשחזר.</p>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal()">ביטול</button>
+      <button class="btn-danger" onclick="confirmDelete()">מחק</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const TEMPLATES = {
+  chest: ['לחיצת חזה בשכיבה','לחיצת חזה נוטה','פרפר','מקביל','לחיצה צרה תלת ראש'],
+  back: ['מתח','חתירה במוט','חתירה בכבל','פולאובר','כפיפות מרפק דו ראש','פטיש'],
+  legs: ['סקוואט','לחיצת רגליים','לאנג','כפיפות שוקיים','כפיפות ברכיים שכיבה','הרמת ברכיים עומד'],
+  shoulders: ['לחיצת כתפיים עומד','הרמת דמבלים בצד','הרמת דמבלים קדמית','הרמת דמבלים אחורי','שכיבות כתפיים'],
+  full: ['סקוואט','לחיצת חזה','מתח','לחיצת כתפיים','כפיפות מרפק דו ראש','לחיצה צרה תלת ראש','פלאנק']
+};
+
+let currentDate = new Date();
+let workouts = {};
+let pendingDeleteKey = null;
+let editingKey = null;
+
+function loadData() {
+  try { workouts = JSON.parse(localStorage.getItem('wt_v2') || '{}'); } catch(e) { workouts = {}; }
+}
+function persist() { localStorage.setItem('wt_v2', JSON.stringify(workouts)); }
+function dateKey(d) { return d.toISOString().slice(0,10); }
+
+function displayDate(d) {
+  const days = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  const months = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dc = new Date(d); dc.setHours(0,0,0,0);
+  const diff = Math.round((dc - today) / 86400000);
+  const pre = diff === 0 ? 'היום — ' : diff === -1 ? 'אתמול — ' : diff === 1 ? 'מחר — ' : '';
+  return pre + days[d.getDay()] + ' ' + d.getDate() + ' ' + months[d.getMonth()];
+}
+
+function getWorkout(key) {
+  if (!workouts[key]) workouts[key] = { exercises: [], notes: '' };
+  return workouts[key];
+}
+
+function getPrevWorkoutKey(beforeKey) {
+  return Object.keys(workouts)
+    .filter(k => k < beforeKey && workouts[k].exercises && workouts[k].exercises.length > 0)
+    .sort().reverse()[0] || null;
+}
+
+function getPrevExData(exName, beforeKey) {
+  const keys = Object.keys(workouts).filter(k => k < beforeKey && workouts[k].exercises).sort().reverse();
+  for (const k of keys) {
+    const found = workouts[k].exercises.find(e => e.name === exName);
+    if (found) return { key: k, ex: found };
+  }
+  return null;
+}
+
+function makeSets(n) {
+  return Array.from({ length: n }, () => ({ reps: '', weight: '', note: '', goalReached: false }));
+}
+
+// ─── LOG ──────────────────────────────────────────────────────────────────────
+function renderLog() {
+  const key = dateKey(currentDate);
+  const w = getWorkout(key);
+  document.getElementById('date-display').textContent = displayDate(currentDate);
+  document.getElementById('workout-notes').value = w.notes || '';
+  renderExercises(key);
+}
+
+function renderExercises(key) {
+  const w = getWorkout(key);
+  const c = document.getElementById('exercises-container');
+  if (!w.exercises.length) {
+    c.innerHTML = '<div class="card empty-state">אין תרגילים עדיין.<br>טען תבנית מהירה או הוסף ידנית.</div>';
+    return;
+  }
+  c.innerHTML = '';
+  w.exercises.forEach((ex, ei) => appendExBlock(key, ei, c));
+}
+
+function appendExBlock(key, ei, container) {
+  const w = getWorkout(key);
+  const ex = w.exercises[ei];
+  const totalReps = ex.sets.reduce((s, st) => s + (parseInt(st.reps)||0), 0);
+  const vol = ex.sets.reduce((s, st) => s + ((parseInt(st.reps)||0)*(parseFloat(st.weight)||0)), 0);
+  const summary = ex.sets.length
+    ? ex.sets.length + ' סטים · ' + totalReps + ' חזרות' + (vol ? ' · ' + Math.round(vol) + 'ק"ג נפח' : '')
+    : 'ללא סטים';
+
+  const prevData = getPrevExData(ex.name, key);
+
+  const block = document.createElement('div');
+  block.className = 'ex-block';
+  block.id = 'exb-' + ei;
+
+  const badge = ex.goalReached ? '<span class="badge badge-goal">🎯 הגעת ליעד</span>' : '';
+
+  block.innerHTML =
+    '<div class="ex-header" onclick="toggleEx(' + ei + ')">' +
+      '<div style="flex:1;min-width:0;">' +
+        '<div class="ex-name">' + ex.name + '</div>' +
+        '<div class="ex-summary" id="exs-' + ei + '">' + summary + '</div>' +
+      '</div>' +
+      '<div class="ex-right">' + badge +
+        '<span class="toggle-icon" id="tog-' + ei + '">▲</span>' +
+      '</div>' +
+    '</div>' +
+    '<div class="ex-body" id="exbd-' + ei + '">' +
+      (prevData ?
+        '<div class="prev-banner">📋 קודם (' + prevData.key + '): ' +
+        prevData.ex.sets.map((s,i) => 'ס' + (i+1) + ': ' + (s.reps||0) + '×' + (s.weight||0) + 'ק"ג').join('  ·  ') +
+        '</div>' : '') +
+      '<table class="st">' +
+        '<thead><tr><th>סט</th><th>חזרות</th><th>משקל (ק"ג)</th><th>הערה</th><th>יעד</th><th></th></tr></thead>' +
+        '<tbody id="stb-' + ei + '"></tbody>' +
+      '</table>' +
+      '<div class="row-actions">' +
+        '<button class="add-set-btn" onclick="addSet(' + ei + ')">+ סט</button>' +
+        '<button class="save-ex-btn" onclick="saveEx(' + ei + ')">💾 שמור תרגיל</button>' +
+        '<button class="remove-ex-btn" onclick="removeEx(' + ei + ')">הסר</button>' +
+      '</div>' +
+    '</div>';
+  container.appendChild(block);
+  renderSets(key, ei);
+}
+
+function renderSets(key, ei) {
+  const ex = getWorkout(key).exercises[ei];
+  const tbody = document.getElementById('stb-' + ei);
+  if (!tbody) return;
+  const prevData = getPrevExData(ex.name, key);
+  tbody.innerHTML = '';
+  ex.sets.forEach((st, si) => {
+    const ps = prevData && prevData.ex.sets[si];
+    const rImproved = ps && st.reps && parseInt(st.reps) > parseInt(ps.reps||0);
+    const wImproved = ps && st.weight && parseFloat(st.weight) > parseFloat(ps.weight||0);
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + (si+1) + '</td>' +
+      '<td>' +
+        '<input type="number" min="0" class="num-inp' + (rImproved ? ' improved' : '') + '" value="' + (st.reps||'') + '" placeholder="' + (ps ? ps.reps||'' : '0') + '" oninput="updSet(' + ei + ',' + si + ',\'reps\',this.value)">' +
+        (ps ? '<span class="prev-hint">קודם: ' + (ps.reps||0) + '</span>' : '') +
+      '</td>' +
+      '<td>' +
+        '<input type="number" min="0" step="0.5" class="num-inp' + (wImproved ? ' improved' : '') + '" value="' + (st.weight||'') + '" placeholder="' + (ps ? ps.weight||'' : '') + '" oninput="updSet(' + ei + ',' + si + ',\'weight\',this.value)">' +
+        (ps ? '<span class="prev-hint">קודם: ' + (ps.weight||0) + '</span>' : '') +
+      '</td>' +
+      '<td><input type="text" class="note-inp" value="' + (st.note||'') + '" placeholder="..." oninput="updSet(' + ei + ',' + si + ',\'note\',this.value)"></td>' +
+      '<td><button class="goal-btn' + (st.goalReached ? ' reached' : '') + '" onclick="toggleGoal(' + ei + ',' + si + ')">' + (st.goalReached ? '✓ יעד' : 'יעד') + '</button></td>' +
+      '<td><button class="del-btn" onclick="removeSet(' + ei + ',' + si + ')">✕</button></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function updateSummary(key, ei) {
+  const ex = getWorkout(key).exercises[ei];
+  const total = ex.sets.reduce((s, st) => s + (parseInt(st.reps)||0), 0);
+  const vol = ex.sets.reduce((s, st) => s + ((parseInt(st.reps)||0)*(parseFloat(st.weight)||0)), 0);
+  const el = document.getElementById('exs-' + ei);
+  if (el) el.textContent = ex.sets.length
+    ? ex.sets.length + ' סטים · ' + total + ' חזרות' + (vol ? ' · ' + Math.round(vol) + 'ק"ג נפח' : '')
+    : 'ללא סטים';
+}
+
+function toggleEx(ei) {
+  const body = document.getElementById('exbd-' + ei);
+  const tog = document.getElementById('tog-' + ei);
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  tog.classList.toggle('closed', open);
+}
+
+function addExercise() {
+  const inp = document.getElementById('new-ex-input');
+  const name = inp.value.trim(); if (!name) return;
+  const key = dateKey(currentDate);
+  const prevData = getPrevExData(name, key);
+  const n = prevData ? prevData.ex.sets.length : 1;
+  getWorkout(key).exercises.push({ name, sets: makeSets(n), goalReached: false });
+  inp.value = '';
+  persist();
+  renderExercises(key);
+  showToast('תרגיל נוסף');
+}
+
+function removeEx(ei) {
+  if (!confirm('להסיר את התרגיל?')) return;
+  const key = dateKey(currentDate);
+  getWorkout(key).exercises.splice(ei, 1);
+  persist(); renderExercises(key);
+}
+
+function saveEx(ei) {
+  const key = dateKey(currentDate);
+  persist(); updateSummary(key, ei); showToast('תרגיל נשמר ✓');
+}
+
+function addSet(ei) {
+  const key = dateKey(currentDate);
+  getWorkout(key).exercises[ei].sets.push({ reps:'', weight:'', note:'', goalReached: false });
+  persist(); renderSets(key, ei); updateSummary(key, ei);
+}
+
+function removeSet(ei, si) {
+  const key = dateKey(currentDate);
+  getWorkout(key).exercises[ei].sets.splice(si, 1);
+  persist(); renderSets(key, ei); updateSummary(key, ei);
+}
+
+function updSet(ei, si, field, val) {
+  const key = dateKey(currentDate);
+  const ex = getWorkout(key).exercises[ei];
+  ex.sets[si][field] = val;
+  persist();
+  updateSummary(key, ei);
+  // update just the border color of reps/weight inputs without re-rendering
+  if (field === 'reps' || field === 'weight') {
+    const prevData = getPrevExData(ex.name, key);
+    const ps = prevData && prevData.ex.sets[si];
+    const tbody = document.getElementById('stb-' + ei);
+    if (tbody) {
+      const row = tbody.rows[si];
+      if (row) {
+        const rInp = row.querySelector('td:nth-child(2) input');
+        const wInp = row.querySelector('td:nth-child(3) input');
+        if (rInp && ps) rInp.classList.toggle('improved', !!val && parseInt(val) > parseInt(ps.reps||0));
+        if (wInp && ps) wInp.classList.toggle('improved', !!val && parseFloat(val) > parseFloat(ps.weight||0));
+      }
+    }
+  }
+}
+
+function toggleGoal(ei, si) {
+  const key = dateKey(currentDate);
+  const ex = getWorkout(key).exercises[ei];
+  ex.sets[si].goalReached = !ex.sets[si].goalReached;
+  ex.goalReached = ex.sets.some(s => s.goalReached);
+  persist();
+  renderSets(key, ei);
+  // update badge
+  const block = document.getElementById('exb-' + ei);
+  if (block) {
+    const right = block.querySelector('.ex-right');
+    if (right) right.innerHTML =
+      (ex.goalReached ? '<span class="badge badge-goal">🎯 הגעת ליעד</span>' : '') +
+      '<span class="toggle-icon" id="tog-' + ei + '">▲</span>';
+  }
+  showToast(ex.sets[si].goalReached ? '🎯 מעולה! סומן כהגעה ליעד — אפשר לעלות משקל!' : 'יעד הוסר');
+}
+
+function saveNotes() {
+  const key = dateKey(currentDate);
+  getWorkout(key).notes = document.getElementById('workout-notes').value;
+  persist();
+}
+
+function saveWorkout() {
+  const key = dateKey(currentDate);
+  const w = getWorkout(key);
+  if (!w.exercises.length) { showToast('הוסף לפחות תרגיל אחד'); return; }
+  w.savedAt = new Date().toISOString();
+  persist();
+  const s = w.exercises.reduce((t, e) => t + e.sets.length, 0);
+  showToast('נשמר! ' + w.exercises.length + ' תרגילים, ' + s + ' סטים ✓');
+}
+
+function loadTemplate(type) {
+  const key = dateKey(currentDate);
+  const w = getWorkout(key);
+  const existing = new Set(w.exercises.map(e => e.name));
+  TEMPLATES[type].forEach(name => {
+    if (existing.has(name)) return;
+    const prev = getPrevExData(name, key);
+    const n = prev ? prev.ex.sets.length : 1;
+    w.exercises.push({ name, sets: makeSets(n), goalReached: false });
+  });
+  persist(); renderExercises(key); showToast('תבנית נטענה');
+}
+
+function loadPrevWorkout() {
+  const key = dateKey(currentDate);
+  const prevKey = getPrevWorkoutKey(key);
+  if (!prevKey) { showToast('לא נמצא אימון קודם'); return; }
+  const prev = workouts[prevKey];
+  const w = getWorkout(key);
+  const existing = new Set(w.exercises.map(e => e.name));
+  prev.exercises.forEach(ex => {
+    if (existing.has(ex.name)) return;
+    w.exercises.push({ name: ex.name, sets: makeSets(ex.sets.length), goalReached: false });
+  });
+  persist(); renderExercises(key);
+  showToast('נטען מ-' + prevKey + ' — ' + prev.exercises.length + ' תרגילים');
+}
+
+function changeDate(dir) {
+  currentDate = new Date(currentDate);
+  currentDate.setDate(currentDate.getDate() + dir);
+  renderLog();
+}
+function goToday() { currentDate = new Date(); renderLog(); }
+
+// ─── HISTORY ──────────────────────────────────────────────────────────────────
+function renderHistory() {
+  const c = document.getElementById('history-container');
+  const keys = Object.keys(workouts).filter(k => workouts[k].exercises && workouts[k].exercises.length).sort().reverse();
+  if (!keys.length) { c.innerHTML = '<div class="card empty-state">עוד אין אימונים שנשמרו.</div>'; return; }
+  c.innerHTML = '';
+  keys.forEach(k => {
+    const w = workouts[k];
+    const d = new Date(k + 'T12:00:00');
+    const div = document.createElement('div');
+    div.className = 'card hist-day';
+    const totalSets = w.exercises.reduce((s, e) => s + e.sets.length, 0);
+    let html =
+      '<div class="hist-date-label">' +
+        '<span>' + displayDate(d) + '</span>' +
+        '<div class="hist-actions">' +
+          '<button class="small-btn edit" onclick="openEditModal(\'' + k + '\')">✏️ ערוך</button>' +
+          '<button class="small-btn del" onclick="openDelModal(\'' + k + '\')">🗑 מחק</button>' +
+        '</div>' +
+      '</div>' +
+      '<div style="font-size:12px; color:var(--muted); margin-bottom:8px;">' + w.exercises.length + ' תרגילים · ' + totalSets + ' סטים</div>';
+    w.exercises.forEach(ex => {
+      const total = ex.sets.reduce((s, st) => s + (parseInt(st.reps)||0), 0);
+      const detail = ex.sets.map((st, i) => 'ס' + (i+1) + ': ' + (st.reps||0) + '×' + (st.weight||0) + 'ק"ג').join('  ');
+      html +=
+        '<div class="hist-row">' +
+          '<div><div>' + ex.name + (ex.goalReached ? ' 🎯' : '') + '</div><div class="hist-detail">' + detail + '</div></div>' +
+          '<div style="text-align:left; white-space:nowrap; color:var(--muted); font-size:12px;">' + ex.sets.length + ' סטים<br>' + total + ' חז\'</div>' +
+        '</div>';
+    });
+    if (w.notes) html += '<div style="font-size:12px; color:var(--muted); margin-top:8px; padding-top:8px; border-top:1px solid var(--border);">📝 ' + w.notes + '</div>';
+    div.innerHTML = html;
+    c.appendChild(div);
+  });
+}
+
+// ─── EDIT MODAL ───────────────────────────────────────────────────────────────
+function openEditModal(key) {
+  editingKey = key;
+  const w = workouts[key];
+  let html = '<div style="font-size:12px; color:var(--muted); margin-bottom:10px;">אימון ' + key + '</div>';
+  w.exercises.forEach((ex, ei) => {
+    html += '<div style="border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 10px; margin-bottom:8px;">' +
+      '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">' +
+        '<input id="eem-n-' + ei + '" value="' + ex.name + '" style="font-size:13px; font-weight:500; border:1px solid var(--border); border-radius:4px; padding:3px 8px; background:var(--bg); width:55%;">' +
+        '<button onclick="delEditEx(' + ei + ')" style="font-size:11px; padding:3px 8px; background:var(--red-bg); border:1px solid var(--red); border-radius:4px; cursor:pointer; color:var(--red);">הסר תרגיל</button>' +
+      '</div>';
+    ex.sets.forEach((st, si) => {
+      html +=
+        '<div style="display:flex; gap:5px; margin-bottom:4px; align-items:center; font-size:12px;">' +
+          '<span style="color:var(--muted); min-width:18px;">ס' + (si+1) + '</span>' +
+          '<input type="number" id="eem-r-' + ei + '-' + si + '" value="' + (st.reps||'') + '" placeholder="חז\'" style="width:52px; padding:4px; border:1px solid var(--border); border-radius:4px; font-size:12px; background:var(--bg); text-align:center;">' +
+          '<span style="color:var(--muted);">×</span>' +
+          '<input type="number" id="eem-w-' + ei + '-' + si + '" value="' + (st.weight||'') + '" placeholder="ק&quot;ג" style="width:58px; padding:4px; border:1px solid var(--border); border-radius:4px; font-size:12px; background:var(--bg); text-align:center;">' +
+          '<input type="text" id="eem-no-' + ei + '-' + si + '" value="' + (st.note||'') + '" placeholder="הערה" style="width:65px; padding:4px; border:1px solid var(--border); border-radius:4px; font-size:12px; background:var(--bg);">' +
+        '</div>';
+    });
+    html += '</div>';
+  });
+  html += '<div class="notes-label" style="margin-top:8px;">הערות</div>' +
+    '<textarea id="eem-notes" style="width:100%; padding:6px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12px; background:var(--bg); resize:vertical; min-height:48px; font-family:inherit;">' + (w.notes||'') + '</textarea>';
+  document.getElementById('edit-modal-body').innerHTML = html;
+  document.getElementById('edit-modal').classList.add('show');
+}
+
+function delEditEx(ei) {
+  workouts[editingKey].exercises.splice(ei, 1);
+  persist(); openEditModal(editingKey);
+}
+
+function saveEditModal() {
+  const w = workouts[editingKey];
+  w.exercises.forEach((ex, ei) => {
+    const n = document.getElementById('eem-n-' + ei);
+    if (n) ex.name = n.value.trim() || ex.name;
+    ex.sets.forEach((st, si) => {
+      const r = document.getElementById('eem-r-' + ei + '-' + si);
+      const ww = document.getElementById('eem-w-' + ei + '-' + si);
+      const no = document.getElementById('eem-no-' + ei + '-' + si);
+      if (r) st.reps = r.value;
+      if (ww) st.weight = ww.value;
+      if (no) st.note = no.value;
+    });
+  });
+  const notesEl = document.getElementById('eem-notes');
+  if (notesEl) w.notes = notesEl.value;
+  persist(); closeModal(); renderHistory(); showToast('אימון עודכן ✓');
+}
+
+function openDelModal(key) { pendingDeleteKey = key; document.getElementById('del-modal').classList.add('show'); }
+
+function confirmDelete() {
+  if (pendingDeleteKey) { delete workouts[pendingDeleteKey]; persist(); pendingDeleteKey = null; }
+  closeModal(); renderHistory(); showToast('אימון נמחק');
+}
+
+function closeModal() {
+  document.getElementById('edit-modal').classList.remove('show');
+  document.getElementById('del-modal').classList.remove('show');
+  editingKey = pendingDeleteKey = null;
+}
+document.querySelectorAll('.modal-overlay').forEach(el => el.addEventListener('click', e => { if (e.target === el) closeModal(); }));
+
+// ─── STATS ────────────────────────────────────────────────────────────────────
+function weekStart(d) {
+  const dt = new Date(d); dt.setHours(0,0,0,0);
+  dt.setDate(dt.getDate() - dt.getDay()); return dt;
+}
+
+function renderStats() {
+  const c = document.getElementById('stats-container');
+  const allKeys = Object.keys(workouts).filter(k => workouts[k].exercises && workouts[k].exercises.length).sort();
+  if (!allKeys.length) { c.innerHTML = '<div class="card empty-state">עוד אין נתונים.</div>'; return; }
+
+  // all-time
+  let totalWk = allKeys.length, totalSets = 0, totalReps = 0;
+  const exMap = {}, exHistory = {};
+  allKeys.forEach(k => {
+    workouts[k].exercises.forEach(ex => {
+      const reps = ex.sets.reduce((s,st) => s+(parseInt(st.reps)||0), 0);
+      const maxW = Math.max(0, ...ex.sets.map(s => parseFloat(s.weight)||0));
+      totalSets += ex.sets.length; totalReps += reps;
+      exMap[ex.name] = (exMap[ex.name]||0) + ex.sets.length;
+      if (!exHistory[ex.name]) exHistory[ex.name] = [];
+      exHistory[ex.name].push({ key: k, maxWeight: maxW, totalReps: reps, sets: ex.sets.length });
+    });
+  });
+
+  // insights
+  const great = [], stuck = [];
+  Object.entries(exHistory).forEach(([name, arr]) => {
+    if (arr.length < 2) return;
+    const last = arr[arr.length-1], prev = arr[arr.length-2];
+    const wD = last.maxWeight - prev.maxWeight;
+    const rD = last.totalReps - prev.totalReps;
+    if (wD > 0 || rD > 0) great.push({ name, wD, rD, lastW: last.maxWeight });
+    else if (wD < 0 || rD < 0) stuck.push({ name, wD, rD, lastW: last.maxWeight });
+  });
+
+  // weeks
+  const weeksMap = {};
+  allKeys.forEach(k => {
+    const ws = dateKey(weekStart(new Date(k + 'T12:00:00')));
+    if (!weeksMap[ws]) weeksMap[ws] = [];
+    weeksMap[ws].push(k);
+  });
+  const weekKeys = Object.keys(weeksMap).sort().reverse();
+  window._wm = weeksMap;
+
+  const top = Object.entries(exMap).sort((a,b) => b[1]-a[1]).slice(0,6);
+  const maxS = top[0] ? top[0][1] : 1;
+
+  let html =
+    '<div class="stats-grid">' +
+      '<div class="stat-card"><div class="stat-num">' + totalWk + '</div><div class="stat-lbl">אימונים</div></div>' +
+      '<div class="stat-card"><div class="stat-num">' + totalSets + '</div><div class="stat-lbl">סטים</div></div>' +
+      '<div class="stat-card"><div class="stat-num">' + totalReps + '</div><div class="stat-lbl">חזרות</div></div>' +
+    '</div>';
+
+  // weekly
+  html += '<div class="card">' +
+    '<div class="week-picker"><strong style="font-size:13px;">סטטיסטיקות שבועיות</strong>' +
+    '<select id="wk-sel" onchange="renderWeekStats(this.value)">' +
+    weekKeys.map((wk,i) => '<option value="' + wk + '">' + (i===0 ? 'שבוע זה — ' : '') + wk + '</option>').join('') +
+    '</select></div>' +
+    '<div id="wk-body"></div></div>';
+
+  // sandwich insights
+  if (great.length || stuck.length) {
+    html += '<div class="card"><div style="font-size:14px; font-weight:500; margin-bottom:10px;">📊 ניתוח התקדמות</div>';
+    great.slice(0,3).forEach(i => {
+      html += '<div class="insight-card great">' +
+        '<div class="insight-title">✅ ' + i.name + '</div>' +
+        '<div class="insight-body">התקדמת! ' + (i.wD > 0 ? '+' + i.wD + 'ק"ג ' : '') + (i.rD > 0 ? '+' + i.rD + ' חזרות ' : '') + '— משקל נוכחי: ' + i.lastW + 'ק"ג. המשך כך!</div>' +
+        '</div>';
+    });
+    stuck.slice(0,3).forEach(i => {
+      html += '<div class="insight-card stuck">' +
+        '<div class="insight-title">⚠️ ' + i.name + '</div>' +
+        '<div class="insight-body">לא הייתה התקדמות מהאימון הקודם. שקול לשנות סכמה, להוסיף סט, לבצע יותר חזרות, או לדייק בטכניקה.</div>' +
+        '</div>';
+    });
+    if (stuck.length && great.length) {
+      html += '<div class="insight-card great">' +
+        '<div class="insight-title">💪 בשורה התחתונה</div>' +
+        '<div class="insight-body">גם אם יש תרגילים לשיפור, ב-' + great[0].name + ' ראינו התקדמות מעולה. שמור על המומנטום!</div>' +
+        '</div>';
+    }
+    html += '</div>';
+  }
+
+  // bar chart
+  html += '<div class="card"><div style="font-size:14px; font-weight:500; margin-bottom:12px;">תרגילים נפוצים</div>';
+  top.forEach(([name, cnt]) => {
+    const pct = Math.round((cnt/maxS)*100);
+    const isGreat = great.some(i => i.name === name);
+    const isStuck = stuck.some(i => i.name === name);
+    html += '<div class="bar-wrap">' +
+      '<div class="bar-header"><span>' + name + ' ' + (isGreat ? '✅' : isStuck ? '⚠️' : '') + '</span><span style="color:var(--muted);">' + cnt + ' סטים</span></div>' +
+      '<div class="bar-track"><div class="bar-fill ' + (isGreat ? 'great' : isStuck ? 'stuck' : '') + '" style="width:' + pct + '%"></div></div>' +
+      '</div>';
+  });
+  html += '</div>';
+
+  c.innerHTML = html;
+  if (weekKeys.length) renderWeekStats(weekKeys[0]);
+}
+
+function renderWeekStats(wk) {
+  const body = document.getElementById('wk-body');
+  if (!body) return;
+  const days = (window._wm || {})[wk] || [];
+  if (!days.length) { body.innerHTML = '<div style="color:var(--muted); font-size:13px;">אין אימונים בשבוע זה.</div>'; return; }
+  let wSets=0, wReps=0;
+  const exW = {};
+  days.forEach(k => {
+    workouts[k].exercises.forEach(ex => {
+      wSets += ex.sets.length;
+      wReps += ex.sets.reduce((s,st) => s+(parseInt(st.reps)||0), 0);
+      exW[ex.name] = (exW[ex.name]||0) + ex.sets.length;
+    });
+  });
+  const topW = Object.entries(exW).sort((a,b) => b[1]-a[1]).slice(0,5);
+  body.innerHTML =
+    '<div class="week-stats-inner">' +
+      '<div><div class="week-stat-n">' + days.length + '</div><div class="week-stat-l">אימונים</div></div>' +
+      '<div><div class="week-stat-n">' + wSets + '</div><div class="week-stat-l">סטים</div></div>' +
+      '<div><div class="week-stat-n">' + wReps + '</div><div class="week-stat-l">חזרות</div></div>' +
+    '</div>' +
+    '<div style="font-size:12px; color:var(--muted); line-height:1.7;">' + topW.map(([n,c]) => n + ' (' + c + ' סטים)').join(' · ') + '</div>';
+}
+
+// ─── TABS ─────────────────────────────────────────────────────────────────────
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  ['log','history','stats'].forEach(t => { document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none'; });
+  if (tab === 'history') renderHistory();
+  if (tab === 'stats') renderStats();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(window._tt);
+  window._tt = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+loadData();
+renderLog();
+</script>
+</body>
+</html>
