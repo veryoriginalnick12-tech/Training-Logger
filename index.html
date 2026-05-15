@@ -257,13 +257,65 @@ const TEMPLATES = {
   full: ['סקוואט','לחיצת חזה','מתח','לחיצת כתפיים','כפיפות מרפק דו ראש','לחיצה צרה תלת ראש','פלאנק']
 };
 
+const API = 'https://script.google.com/macros/s/AKfycbyNXFFpWidhqOhXv5WQLNfqMjuf6et_ZywGYHByqqARqiIftaCNnPN6pAReMIOEeZH4/exec';
+
 let currentDate = new Date();
 let workouts = {};
 let pendingDeleteKey = null;
 let editingKey = null;
+let _saveQueue = {}, _saveTimer = null;
+
+// ─── API LAYER ────────────────────────────────────────────────────────────────
+async function apiCall(body) {
+  const res = await fetch(API, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+  return res.json();
+}
+
+async function loadData() {
+  showToast('טוען נתונים...');
+  try {
+    const r = await apiCall({ action: 'load' });
+    workouts = r.data || {};
+    // also sync to localStorage as cache
+    localStorage.setItem('wt_v2', JSON.stringify(workouts));
+  } catch(e) {
+    // fallback to local cache if offline
+    try { workouts = JSON.parse(localStorage.getItem('wt_v2') || '{}'); } catch(_) { workouts = {}; }
+    showToast('מצב לא מקוון — נטען מהמטמון');
+  }
+}
+
+// debounced persist: batches rapid saves into one API call per workout per 1.5s
+function persist(key) {
+  const k = key || dateKey(currentDate);
+  localStorage.setItem('wt_v2', JSON.stringify(workouts)); // instant local save
+  _saveQueue[k] = true;
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => flushSaveQueue(), 1500);
+}
+
+async function flushSaveQueue() {
+  const keys = Object.keys(_saveQueue);
+  _saveQueue = {};
+  for (const k of keys) {
+    if (!workouts[k]) continue;
+    try {
+      await apiCall({ action: 'save', key: k, workout: workouts[k] });
+    } catch(e) {
+      showToast('שגיאת שמירה — נשמר מקומית');
+    }
+  }
+}
+
+async function deleteFromSheets(key) {
+  try { await apiCall({ action: 'delete', key }); } catch(e) {}
+}
 
 function exportData() {
-  const data = localStorage.getItem('wt_v2') || '{}';
+  const data = JSON.stringify(workouts);
   const blob = new Blob([data], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -276,14 +328,17 @@ function importData(event) {
   const file = event.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = async function(e) {
     try {
       const parsed = JSON.parse(e.target.result);
-      // merge: new data wins on conflict
-      const existing = JSON.parse(localStorage.getItem('wt_v2') || '{}');
-      const merged = Object.assign({}, existing, parsed);
-      localStorage.setItem('wt_v2', JSON.stringify(merged));
-      loadData();
+      const merged = Object.assign({}, workouts, parsed);
+      workouts = merged;
+      localStorage.setItem('wt_v2', JSON.stringify(workouts));
+      // push all imported workouts to Sheets
+      showToast('מעלה נתונים ל-Sheets...');
+      for (const k of Object.keys(parsed)) {
+        await apiCall({ action: 'save', key: k, workout: workouts[k] });
+      }
       renderLog();
       showToast('יובאו ' + Object.keys(parsed).length + ' אימונים ✓');
     } catch(err) {
@@ -293,11 +348,6 @@ function importData(event) {
   };
   reader.readAsText(file);
 }
-
-function loadData() {
-  try { workouts = JSON.parse(localStorage.getItem('wt_v2') || '{}'); } catch(e) { workouts = {}; }
-}
-function persist() { localStorage.setItem('wt_v2', JSON.stringify(workouts)); }
 function dateKey(d) { return d.toISOString().slice(0,10); }
 
 function displayDate(d) {
@@ -467,7 +517,7 @@ function addExercise() {
   const n = prevData ? prevData.ex.sets.length : 1;
   getWorkout(key).exercises.push({ name, sets: makeSets(n), goalReached: false });
   inp.value = '';
-  persist();
+  persist(key);
   renderExercises(key);
   showToast('תרגיל נוסף');
 }
@@ -476,18 +526,18 @@ function removeEx(ei) {
   if (!confirm('להסיר את התרגיל?')) return;
   const key = dateKey(currentDate);
   getWorkout(key).exercises.splice(ei, 1);
-  persist(); renderExercises(key);
+  persist(key); renderExercises(key);
 }
 
 function saveEx(ei) {
   const key = dateKey(currentDate);
-  persist(); updateSummary(key, ei); showToast('תרגיל נשמר ✓');
+  persist(key); updateSummary(key, ei); showToast('תרגיל נשמר ✓');
 }
 
 function updExNote(ei, val) {
   const key = dateKey(currentDate);
   getWorkout(key).exercises[ei].note = val;
-  persist();
+  persist(key);
 }
 
 // ─── DRAG & DROP ──────────────────────────────────────────────────────────────
@@ -514,7 +564,7 @@ function initDrag(block, ei) {
     const [moved] = exs.splice(dragSrcIdx, 1);
     exs.splice(ei, 0, moved);
     dragSrcIdx = null;
-    persist(); renderExercises(key);
+    persist(key); renderExercises(key);
   });
 
   // Mobile touch drag
@@ -545,7 +595,7 @@ function initDrag(block, ei) {
       const exs = getWorkout(key).exercises;
       const [moved] = exs.splice(dragSrcIdx, 1);
       exs.splice(targetIdx, 0, moved);
-      persist(); renderExercises(key);
+      persist(key); renderExercises(key);
     }
     dragSrcIdx = null;
   });
@@ -554,20 +604,20 @@ function initDrag(block, ei) {
 function addSet(ei) {
   const key = dateKey(currentDate);
   getWorkout(key).exercises[ei].sets.push({ reps:'', weight:'', note:'', goalReached: false });
-  persist(); renderSets(key, ei); updateSummary(key, ei);
+  persist(key); renderSets(key, ei); updateSummary(key, ei);
 }
 
 function removeSet(ei, si) {
   const key = dateKey(currentDate);
   getWorkout(key).exercises[ei].sets.splice(si, 1);
-  persist(); renderSets(key, ei); updateSummary(key, ei);
+  persist(key); renderSets(key, ei); updateSummary(key, ei);
 }
 
 function updSet(ei, si, field, val) {
   const key = dateKey(currentDate);
   const ex = getWorkout(key).exercises[ei];
   ex.sets[si][field] = val;
-  persist();
+  persist(key);
   updateSummary(key, ei);
   if (field === 'reps' || field === 'weight') {
     const prevData = getPrevExData(ex.name, key);
@@ -593,7 +643,7 @@ function toggleGoal(ei, si) {
   const ex = getWorkout(key).exercises[ei];
   ex.sets[si].goalReached = !ex.sets[si].goalReached;
   ex.goalReached = ex.sets.some(s => s.goalReached);
-  persist();
+  persist(key);
   renderSets(key, ei);
   // update badge
   const block = document.getElementById('exb-' + ei);
@@ -609,7 +659,7 @@ function toggleGoal(ei, si) {
 function saveNotes() {
   const key = dateKey(currentDate);
   getWorkout(key).notes = document.getElementById('workout-notes').value;
-  persist();
+  persist(key);
 }
 
 function saveWorkout() {
@@ -617,7 +667,7 @@ function saveWorkout() {
   const w = getWorkout(key);
   if (!w.exercises.length) { showToast('הוסף לפחות תרגיל אחד'); return; }
   w.savedAt = new Date().toISOString();
-  persist();
+  persist(key);
   const s = w.exercises.reduce((t, e) => t + e.sets.length, 0);
   showToast('נשמר! ' + w.exercises.length + ' תרגילים, ' + s + ' סטים ✓');
 }
@@ -632,7 +682,7 @@ function loadTemplate(type) {
     const n = prev ? prev.ex.sets.length : 1;
     w.exercises.push({ name, sets: makeSets(n), goalReached: false });
   });
-  persist(); renderExercises(key); showToast('תבנית נטענה');
+  persist(key); renderExercises(key); showToast('תבנית נטענה');
 }
 
 function loadPrevWorkout() {
@@ -646,7 +696,7 @@ function loadPrevWorkout() {
     if (existing.has(ex.name)) return;
     w.exercises.push({ name: ex.name, sets: makeSets(ex.sets.length), goalReached: false });
   });
-  persist(); renderExercises(key);
+  persist(key); renderExercises(key);
   showToast('נטען מ-' + prevKey + ' — ' + prev.exercises.length + ' תרגילים');
 }
 
@@ -728,7 +778,7 @@ function openEditModal(key) {
 
 function delEditEx(ei) {
   workouts[editingKey].exercises.splice(ei, 1);
-  persist(); openEditModal(editingKey);
+  persist(editingKey); openEditModal(editingKey);
 }
 
 function saveEditModal() {
@@ -747,13 +797,18 @@ function saveEditModal() {
   });
   const notesEl = document.getElementById('eem-notes');
   if (notesEl) w.notes = notesEl.value;
-  persist(); closeModal(); renderHistory(); showToast('אימון עודכן ✓');
+  persist(editingKey); closeModal(); renderHistory(); showToast('אימון עודכן ✓');
 }
 
 function openDelModal(key) { pendingDeleteKey = key; document.getElementById('del-modal').classList.add('show'); }
 
 function confirmDelete() {
-  if (pendingDeleteKey) { delete workouts[pendingDeleteKey]; persist(); pendingDeleteKey = null; }
+  if (pendingDeleteKey) {
+    deleteFromSheets(pendingDeleteKey);
+    delete workouts[pendingDeleteKey];
+    localStorage.setItem('wt_v2', JSON.stringify(workouts));
+    pendingDeleteKey = null;
+  }
   closeModal(); renderHistory(); showToast('אימון נמחק');
 }
 
@@ -909,8 +964,11 @@ function showToast(msg) {
   window._tt = setTimeout(() => t.classList.remove('show'), 2800);
 }
 
-loadData();
-renderLog();
+async function init() {
+  await loadData();
+  renderLog();
+}
+init();
 </script>
 </body>
 </html>
